@@ -1,0 +1,293 @@
+// ServerRules.js - 服务器规则展示插件
+
+const pluginName = "ServerRules";
+const version = "4.0.0";
+
+// 配置文件路径
+const CONFIG_PATH = "plugins/ServerRules/config.json";
+const WHITELIST_PATH = "plugins/ServerRules/whitelist.json";
+
+// 默认配置
+const defaultConfig = {
+    rules: [
+        "§l§6青沐晞服务器",
+        "§eIP: es912.top  端口: 20100",
+        "",
+        "§l§c生存服总法典",
+        "",
+        "§l§e规则类",
+        "§71.禁止一切卡服性的生电机器",
+        "§72.请勿使用运输矿车，用漏斗矿车代替",
+        "§73.禁止一切刷沙机，发现了就拆。",
+        "§74.禁止利用服务器的漏洞刷物等",
+        "§75.禁止使用外挂",
+        "§7  举报者奖励1w，外挂者永久封号，无论外挂是什么性质的挂哪怕是toolbox的快速建筑也要打击",
+        "§76.禁止偷家",
+        "§7  被偷家的人可以通过截图证据举报",
+        "§7  偷家者将除以没收其全部财产作为处罚(/clear)",
+        "§77.禁止卡服炸服,参与者封号处理",
+        "§78.禁止矿透,发现后，根据具体情况处罚",
+        "§79.严禁在服务器内出现任何的现金交易，不管是出于何种性质，抓到即查封",
+        "§710.严禁出现在服内涉及与群规同样的底线问题，抓到给予禁言并警告，再者即封",
+        "§711.服务器丢入漏斗等容器的收纳袋会被清理",
+        "",
+        "§l§e财产类",
+        "§71.被抄家，被毁家的人可以通过截图证据举报，偷家者没收其全部财产",
+        "§72.被清理类插件清理的物品不会赔偿",
+        "§73.服务器有领地插件，如果不用领地被人偷东西了，请提供坐标",
+        "§74.Bug例如回档导致的财产丢失，如果回档后不超过五分钟可以提供以前的背包数据覆盖现在的背包数据，其他看情况处理",
+        "",
+        "§l§e政治类",
+        "§71.服务器禁止一切第三方宣传，邪教等内容，被发现将踢出服务器",
+        "§72.禁止在服务器内辱骂他人，程度分三类。第三类将封禁"
+    ],
+    title: "§l§c服务器规则",
+    buttonText: "§a✓ 我已阅读并同意规则",
+    waitTime: 30,
+    waitMessage: "§e请等待 {time} 秒后才能同意规则...",
+    readyMessage: "§a您现在可以点击同意按钮了！",
+    reminderMessage: "§c请先阅读并同意服务器规则才能游戏！",
+    configVersion: "4.0.0"
+};
+
+// 当前配置
+let config = {};
+
+// 存储已同意规则的玩家（内存缓存）
+let agreedPlayers = {};
+
+// 存储玩家的等待状态
+let playerWaitTime = {};
+
+// 读取配置文件
+function loadConfig() {
+    try {
+        // 确保插件目录存在
+        File.mkdir("plugins/ServerRules");
+        
+        // 尝试读取配置文件
+        let content = File.readFrom(CONFIG_PATH);
+        if (content) {
+            config = JSON.parse(content);
+            logger.info("§a[ServerRules] 配置文件加载成功");
+        } else {
+            // 文件不存在，使用默认配置并创建
+            config = defaultConfig;
+            saveConfig();
+            logger.info("§a[ServerRules] 已创建默认配置文件");
+        }
+    } catch (error) {
+        logger.error("§c[ServerRules] 配置文件加载失败，使用默认配置: " + error);
+        config = defaultConfig;
+    }
+}
+
+// 保存配置文件
+function saveConfig() {
+    try {
+        File.writeTo(CONFIG_PATH, JSON.stringify(config, null, 4));
+    } catch (error) {
+        logger.error("§c[ServerRules] 配置文件保存失败: " + error);
+    }
+}
+
+// 从配置中获取规则文本
+function getRulesText() {
+    return config.rules.join("\n");
+}
+
+// ==================== 白名单功能 ====================
+
+// 加载白名单文件
+function loadWhitelist() {
+    try {
+        let content = File.readFrom(WHITELIST_PATH);
+        if (content) {
+            let whitelist = JSON.parse(content);
+            
+            // 遍历数组，构建内存缓存
+            whitelist.forEach(playerName => {
+                agreedPlayers[playerName] = true;
+            });
+            
+            logger.info("§a[ServerRules] 白名单加载成功，共 " + whitelist.length + " 个玩家");
+            return true;
+        } else {
+            // 文件不存在，创建空数组
+            saveWhitelist([]);
+            logger.info("§a[ServerRules] 已创建空白名单文件");
+            return true;
+        }
+    } catch (error) {
+        logger.error("§c[ServerRules] 白名单加载失败: " + error);
+        return false;
+    }
+}
+
+// 保存白名单文件
+function saveWhitelist(playerArray) {
+    try {
+        File.writeTo(WHITELIST_PATH, JSON.stringify(playerArray, null, 4));
+        return true;
+    } catch (error) {
+        logger.error("§c[ServerRules] 白名单保存失败: " + error);
+        return false;
+    }
+}
+
+// 添加玩家到白名单
+function addPlayerToWhitelist(playerName) {
+    try {
+        // 读取当前白名单
+        let content = File.readFrom(WHITELIST_PATH);
+        let whitelist = content ? JSON.parse(content) : [];
+        
+        // 检查是否已存在
+        if (!whitelist.includes(playerName)) {
+            whitelist.push(playerName);
+            saveWhitelist(whitelist);
+            
+            // 更新内存缓存
+            agreedPlayers[playerName] = true;
+            
+            logger.info("§a[ServerRules] 玩家 " + playerName + " 已添加到白名单");
+            return true;
+        }
+        return false;
+    } catch (error) {
+        logger.error("§c[ServerRules] 添加玩家到白名单失败: " + error);
+        return false;
+    }
+}
+
+// 检查玩家是否已同意规则
+function hasPlayerAgreed(playerName) {
+    return agreedPlayers[playerName] === true;
+}
+
+// ==================== 表单和等待逻辑 ====================
+
+// 更新等待时间显示
+function updateWaitTime(player, startTime) {
+    let name = player.realName;
+    
+    // 如果已经同意过，不再弹窗
+    if (hasPlayerAgreed(name)) {
+        return;
+    }
+    
+    let elapsed = Math.floor((Date.now() - startTime) / 1000);
+    let remaining = Math.max(0, config.waitTime - elapsed);
+    
+    if (remaining <= 0) {
+        // 等待时间结束，启用按钮
+        playerWaitTime[name] = 0;
+        
+        // 创建可同意的表单
+        let form = mc.newSimpleForm();
+        form.setTitle(config.title);
+        form.setContent(getRulesText() + "\n\n§a" + config.readyMessage);
+        form.addButton(config.buttonText);
+        
+        player.sendForm(form, (pl, selected) => {
+            if (hasPlayerAgreed(pl.realName)) return;
+            
+            if (selected === 0) {
+                addPlayerToWhitelist(pl.realName);
+                delete playerWaitTime[pl.realName];
+            }
+
+                    });
+    } else {
+        // 继续等待，更新倒计时
+        playerWaitTime[name] = remaining;
+        
+        // 创建等待中的表单
+        let waitMsg = config.waitMessage.replace("{time}", remaining);
+        let form = mc.newSimpleForm();
+        form.setTitle(config.title);
+        form.setContent(getRulesText() + "\n\n§c" + waitMsg);
+        form.addButton("§7⏳ 请等待 " + remaining + " 秒...");
+        
+        player.sendForm(form, (pl, selected) => {
+            if (hasPlayerAgreed(pl.realName)) return;
+            
+            // 无论选什么都继续等待
+            setTimeout(() => {
+                if (!hasPlayerAgreed(pl.realName)) {
+                    updateWaitTime(pl, startTime);
+                }
+            }, 100);
+        });
+    }
+}
+
+// 强制显示规则表单
+function forceShowRules(player) {
+    let name = player.realName;
+    
+    // 如果已经同意过，不再弹窗
+    if (hasPlayerAgreed(name)) {
+        return;
+    }
+    
+    // 记录开始时间
+    let startTime = Date.now();
+    
+    // 创建初始表单
+    let form = mc.newSimpleForm();
+    form.setTitle(config.title);
+    
+    // 初始状态，按钮不可用
+    let waitMsg = config.waitMessage.replace("{time}", config.waitTime);
+    form.setContent(getRulesText() + "\n\n§c" + waitMsg);
+    form.addButton("§7⏳ 请等待 " + config.waitTime + " 秒...");
+    
+    player.sendForm(form, (pl, selected) => {
+        if (hasPlayerAgreed(pl.realName)) return;
+        
+        // 立即开始计时
+        setTimeout(() => {
+            if (!hasPlayerAgreed(pl.realName)) {
+                updateWaitTime(pl, startTime);
+            }
+        }, 100);
+    });
+}
+
+// ==================== 事件监听 ====================
+
+// 玩家加入游戏
+mc.listen("onJoin", (player) => {
+    let name = player.realName;
+    
+    // 检查是否已同意规则
+    if (hasPlayerAgreed(name)) {
+        return; // 已同意，不弹窗
+    }
+    
+    // 延迟一秒后强制弹窗
+    setTimeout(() => {
+        // 再次检查是否已同意规则
+        if (!hasPlayerAgreed(name)) {
+            forceShowRules(player);
+            player.sendText(config.reminderMessage);
+        }
+    }, 1000);
+});
+
+// ==================== 插件初始化 ====================
+
+// 加载配置
+loadConfig();
+
+// 加载白名单
+loadWhitelist();
+
+logger.info("§a[ServerRules] 服务器规则插件已加载");
+logger.info("§a[ServerRules] 版本: " + version);
+logger.info("§a[ServerRules] 配置文件路径: " + CONFIG_PATH);
+logger.info("§a[ServerRules] 白名单文件路径: " + WHITELIST_PATH);
+logger.info("§a[ServerRules] 当前规则条数: " + config.rules.length);
+logger.info("§a[ServerRules] 等待时间: " + config.waitTime + "秒");
+logger.info("§a[ServerRules] 已同意玩家数: " + Object.keys(agreedPlayers).length);
